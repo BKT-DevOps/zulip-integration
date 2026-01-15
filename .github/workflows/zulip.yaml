@@ -6,7 +6,7 @@ on:
     - cron: '0 9 * * *'  # Runs daily at 9 AM UTC
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
   actions: read
   checks: write
@@ -62,4 +62,4 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add daily-quiz daily-quiz-sent
           git commit -m "Move sent quiz image to daily-quiz-sent folder" || echo "No changes to commit"
-          git push
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}

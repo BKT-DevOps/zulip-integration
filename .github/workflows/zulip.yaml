@@ -1,0 +1,58 @@
+name: Send Daily Quiz Image to Zulip
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+  schedule:
+    - cron: '0 9 * * *'  # Runs daily at 9 AM UTC
+
+jobs:
+  send-image:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Find first image in daily-quiz folder
+        id: find-image
+        run: |
+          IMAGE=$(find daily-quiz -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort | head -n 1)
+          if [ -z "$IMAGE" ]; then
+            echo "No images found in daily-quiz folder"
+            exit 1
+          fi
+          echo "image_path=$IMAGE" >> $GITHUB_OUTPUT
+          echo "Found image: $IMAGE"
+      
+      - name: Upload image to Zulip
+        run: |
+          RESPONSE=$(curl -X POST ${{ secrets.ZULIP_SITE }}/api/v1/user_uploads \
+            -u ${{ secrets.ZULIP_BOT_EMAIL }}:${{ secrets.ZULIP_API_KEY }} \
+            -F "filename=@${{ steps.find-image.outputs.image_path }}")
+          
+          IMAGE_URL=$(echo $RESPONSE | jq -r '.uri')
+          echo "image_url=$IMAGE_URL" >> $GITHUB_ENV
+          echo "Uploaded image URL: $IMAGE_URL"
+      
+      - name: Send message with image to Zulip
+        run: |
+          curl -X POST ${{ secrets.ZULIP_SITE }}/api/v1/messages \
+            -u ${{ secrets.ZULIP_BOT_EMAIL }}:${{ secrets.ZULIP_API_KEY }} \
+            -d "type=stream" \
+            -d "to=553174" \
+            -d "topic=Daily Quiz" \
+            -d "content=📸 Daily Quiz Image%0A${{ env.image_url }}"
+      
+      - name: Move sent image to daily-quiz-sent folder
+        run: |
+          mkdir -p daily-quiz-sent
+          mv "${{ steps.find-image.outputs.image_path }}" daily-quiz-sent/
+          echo "Moved ${{ steps.find-image.outputs.image_path }} to daily-quiz-sent/"
+      
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add daily-quiz daily-quiz-sent
+          git commit -m "Move sent quiz image to daily-quiz-sent folder" || echo "No changes to commit"
+          git push

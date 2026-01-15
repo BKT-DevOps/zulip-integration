@@ -31,35 +31,22 @@ jobs:
           echo "image_path=$IMAGE" >> $GITHUB_OUTPUT
           echo "Found image: $IMAGE"
       
-      - name: Upload image to Zulip
+      - name: Get image URL from GitHub
         run: |
-          RESPONSE=$(curl -s -X POST ${{ secrets.ZULIP_SITE }}/api/v1/user_uploads \
-            -u ${{ secrets.ZULIP_BOT_EMAIL }}:${{ secrets.ZULIP_API_KEY }} \
-            -F "filename=@${{ steps.find-image.outputs.image_path }}")
-          
-          echo "API Response: $RESPONSE"
-          
-          # Check if upload was successful
-          RESULT=$(echo $RESPONSE | jq -r '.result')
-          if [ "$RESULT" != "success" ]; then
-            echo "Upload failed: $RESPONSE"
-            exit 1
-          fi
-          
-          # Get URI and construct full URL
-          URI=$(echo $RESPONSE | jq -r '.uri')
-          IMAGE_URL="${{ secrets.ZULIP_SITE }}$URI"
+          IMAGE_PATH="${{ steps.find-image.outputs.image_path }}"
+          IMAGE_NAME=$(basename "$IMAGE_PATH")
+          IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/$IMAGE_PATH"
           echo "image_url=$IMAGE_URL" >> $GITHUB_ENV
-          echo "Uploaded image URL: $IMAGE_URL"
+          echo "Image URL: $IMAGE_URL"
       
       - name: Send message with image to Zulip
         run: |
-          curl -X POST ${{ secrets.ZULIP_SITE }}/api/v1/messages \
+          curl -s -X POST ${{ secrets.ZULIP_SITE }}/api/v1/messages \
             -u ${{ secrets.ZULIP_BOT_EMAIL }}:${{ secrets.ZULIP_API_KEY }} \
             -d "type=stream" \
             -d "to=553174" \
             -d "topic=Daily Quiz" \
-            -d "content=📸 Daily Quiz Image%0A${{ env.image_url }}"
+            -d "content=📸 Daily Quiz Image%0A![$IMAGE_NAME](${{ env.image_url }})"
       
       - name: Move sent image to daily-quiz-sent folder
         run: |

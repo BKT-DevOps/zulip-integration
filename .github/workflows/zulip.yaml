@@ -5,13 +5,6 @@ on:
   schedule:
     - cron: '0 9 * * *'  # Runs daily at 9 AM UTC
 
-permissions:
-  contents: write
-  id-token: write
-  actions: read
-  checks: write
-  pull-requests: write
-
 jobs:
   send-image:
     runs-on: ubuntu-latest
@@ -20,12 +13,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Find first image in daily-quiz folder
+      - name: Find image in 02-today folder
         id: find-image
         run: |
-          IMAGE=$(find daily-quiz -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort | head -n 1)
+          IMAGE=$(find 02-today -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort | head -n 1)
           if [ -z "$IMAGE" ]; then
-            echo "No images found in daily-quiz folder"
+            echo "No images found in 02-today folder"
             exit 1
           fi
           echo "image_path=$IMAGE" >> $GITHUB_OUTPUT
@@ -35,8 +28,8 @@ jobs:
         run: |
           IMAGE_PATH="${{ steps.find-image.outputs.image_path }}"
           IMAGE_NAME=$(basename "$IMAGE_PATH")
-          # Use daily-quiz-sent path since the file will be moved there before pushing
-          IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/daily-quiz-sent/$IMAGE_NAME"
+          # Use 03-sent path since the file will be moved there at midnight
+          IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/03-sent/$IMAGE_NAME"
           echo "image_url=$IMAGE_URL" >> $GITHUB_ENV
           echo "image_name=$IMAGE_NAME" >> $GITHUB_ENV
           echo "Image URL: $IMAGE_URL"
@@ -49,17 +42,3 @@ jobs:
             -d "to=553174" \
             -d "topic=Daily Quiz" \
             -d "content=📸 Daily Quiz Image%0A![${{ env.image_name }}](${{ env.image_url }})"
-      
-      - name: Move sent image to daily-quiz-sent folder
-        run: |
-          mkdir -p daily-quiz-sent
-          mv "${{ steps.find-image.outputs.image_path }}" daily-quiz-sent/
-          echo "Moved ${{ steps.find-image.outputs.image_path }} to daily-quiz-sent/"
-      
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add daily-quiz daily-quiz-sent
-          git commit -m "Move sent quiz image to daily-quiz-sent folder" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}

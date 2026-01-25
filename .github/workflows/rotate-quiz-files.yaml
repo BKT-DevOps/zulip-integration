@@ -1,48 +1,95 @@
 name: Rotate Daily Quiz Files
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at 00:00 UTC
+    - cron: '0 0 * * *'  # Daily at 00:00 UTC (03:00 Turkey)
 
 permissions:
   contents: write
 
+env:
+  CATEGORIES: "AWS Linux Docker"
+
 jobs:
   rotate-files:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Move file from 02-today to 03-sent
+
+      - name: Select random quiz from each category
         run: |
-          mkdir -p 03-sent
-          if [ -n "$(ls -A 02-today 2>/dev/null)" ]; then
-            mv 02-today/* 03-sent/
-            echo "Moved files from 02-today to 03-sent"
-          else
-            echo "No files to move from 02-today"
+          MISSING_CATEGORIES=""
+          SELECTED_COUNT=0
+
+          for CATEGORY in ${{ env.CATEGORIES }}; do
+            echo "=== Processing category: $CATEGORY ==="
+
+            # Ensure directories exist
+            mkdir -p "01-db/$CATEGORY" "02-today/$CATEGORY" "03-sent/$CATEGORY"
+
+            # Find all images in the category's db folder
+            IMAGES=$(find "01-db/$CATEGORY" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null)
+
+            if [ -z "$IMAGES" ]; then
+              echo "::warning::No images found in 01-db/$CATEGORY"
+              MISSING_CATEGORIES="$MISSING_CATEGORIES $CATEGORY"
+              continue
+            fi
+
+            # Count available images
+            IMAGE_COUNT=$(echo "$IMAGES" | wc -l | tr -d ' ')
+            echo "Found $IMAGE_COUNT images in $CATEGORY"
+
+            # Select a random image using shuf
+            RANDOM_IMAGE=$(echo "$IMAGES" | shuf -n 1)
+            IMAGE_NAME=$(basename "$RANDOM_IMAGE")
+            BASE_NAME="${IMAGE_NAME%.*}"
+            echo "Selected: $RANDOM_IMAGE"
+
+            # Move image to today's folder
+            mv "$RANDOM_IMAGE" "02-today/$CATEGORY/"
+            echo "Moved image to 02-today/$CATEGORY/"
+
+            # Also move the answer file if it exists (same name but .txt or .md)
+            DIR_NAME=$(dirname "$RANDOM_IMAGE")
+            for ext in txt md; do
+              ANSWER_FILE="${DIR_NAME}/${BASE_NAME}.${ext}"
+              if [ -f "$ANSWER_FILE" ]; then
+                mv "$ANSWER_FILE" "02-today/$CATEGORY/"
+                echo "Moved answer file: ${BASE_NAME}.${ext}"
+                break
+              fi
+            done
+
+            SELECTED_COUNT=$((SELECTED_COUNT + 1))
+          done
+
+          echo ""
+          echo "=== Summary ==="
+          echo "Selected $SELECTED_COUNT quizzes for tomorrow"
+
+          if [ -n "$MISSING_CATEGORIES" ]; then
+            echo "::warning::Missing images for:$MISSING_CATEGORIES"
+            echo ""
+            echo "Please add more quiz images to the following folders:"
+            for CAT in $MISSING_CATEGORIES; do
+              echo "  - 01-db/$CAT/"
+            done
           fi
-      
-      - name: Move first file from 01-db to 02-today
-        run: |
-          mkdir -p 02-today
-          FIRST_IMAGE=$(find 01-db -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | sort | head -n 1)
-          
-          if [ -z "$FIRST_IMAGE" ]; then
-            echo "No images found in 01-db folder"
+
+          if [ $SELECTED_COUNT -eq 0 ]; then
+            echo "::error::No quizzes selected! All categories are empty."
+            echo "Please add quiz images to 01-db/{AWS,Linux,Docker}/ folders"
             exit 1
           fi
-          
-          mv "$FIRST_IMAGE" 02-today/
-          echo "Moved $FIRST_IMAGE to 02-today/"
-      
+
       - name: Commit and push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add 01-db 02-today 03-sent
-          git commit -m "Rotate daily quiz files" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          git add .
+          git diff --staged --quiet || git commit -m "Rotate daily quiz files"
+          git push

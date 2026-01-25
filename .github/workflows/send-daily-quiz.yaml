@@ -1,0 +1,116 @@
+name: Send Daily Quiz to Zulip
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'  # Daily at 09:00 UTC (12:00 Turkey)
+
+permissions:
+  contents: write
+
+env:
+  CATEGORIES: "AWS Linux Docker"
+
+jobs:
+  send-quizzes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Move images and answers to archive
+        id: prepare-images
+        run: |
+          IMAGES_FOUND=false
+
+          for CATEGORY in ${{ env.CATEGORIES }}; do
+            mkdir -p "03-sent/$CATEGORY"
+
+            # Find image in 02-today/CATEGORY
+            IMAGE=$(find "02-today/$CATEGORY" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null | head -n 1)
+
+            if [ -n "$IMAGE" ]; then
+              IMAGE_NAME=$(basename "$IMAGE")
+              BASE_NAME="${IMAGE_NAME%.*}"
+
+              # Move image
+              mv "$IMAGE" "03-sent/$CATEGORY/$IMAGE_NAME"
+              echo "${CATEGORY}_IMAGE=$IMAGE_NAME" >> $GITHUB_OUTPUT
+              echo "Prepared $CATEGORY image: $IMAGE_NAME"
+              IMAGES_FOUND=true
+
+              # Move answer file if exists (same name but .txt or .md)
+              for ext in txt md; do
+                ANSWER_FILE="02-today/$CATEGORY/${BASE_NAME}.${ext}"
+                if [ -f "$ANSWER_FILE" ]; then
+                  mv "$ANSWER_FILE" "03-sent/$CATEGORY/"
+                  echo "${CATEGORY}_ANSWER=${BASE_NAME}.${ext}" >> $GITHUB_OUTPUT
+                  echo "Prepared $CATEGORY answer: ${BASE_NAME}.${ext}"
+                  break
+                fi
+              done
+            else
+              echo "${CATEGORY}_IMAGE=" >> $GITHUB_OUTPUT
+              echo "::warning::No image found for $CATEGORY"
+            fi
+          done
+
+          if [ "$IMAGES_FOUND" = false ]; then
+            echo "::error::No images found in any category!"
+            exit 1
+          fi
+
+      - name: Commit archive changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add 02-today 03-sent
+          git diff --staged --quiet || git commit -m "Move quiz images to archive"
+          git push
+
+      - name: Wait for GitHub CDN to update
+        run: sleep 10
+
+      - name: Send quizzes to Zulip
+        id: send-messages
+        env:
+          ZULIP_SITE: ${{ secrets.ZULIP_SITE }}
+          ZULIP_BOT_EMAIL: ${{ secrets.ZULIP_BOT_EMAIL }}
+          ZULIP_API_KEY: ${{ secrets.ZULIP_API_KEY }}
+          AWS_IMAGE: ${{ steps.prepare-images.outputs.AWS_IMAGE }}
+          LINUX_IMAGE: ${{ steps.prepare-images.outputs.Linux_IMAGE }}
+          DOCKER_IMAGE: ${{ steps.prepare-images.outputs.Docker_IMAGE }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          chmod +x scripts/send-quiz.sh
+          ./scripts/send-quiz.sh
+
+      - name: Save message IDs for cleanup
+        if: steps.send-messages.outputs.message_ids != ''
+        env:
+          MSG_IDS: ${{ steps.send-messages.outputs.message_ids }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+
+          if [ -f "message_ids.json" ] && [ -s "message_ids.json" ]; then
+            jq --arg date "$DATE" --arg ids "$MSG_IDS" \
+              '. + [{date: $date, message_ids: ($ids | split(",") | map(select(. != "")))}]' \
+              message_ids.json > tmp.json && mv tmp.json message_ids.json
+          else
+            jq -n --arg date "$DATE" --arg ids "$MSG_IDS" \
+              '[{date: $date, message_ids: ($ids | split(",") | map(select(. != "")))}]' \
+              > message_ids.json
+          fi
+
+          echo "Saved message IDs:"
+          cat message_ids.json
+
+      - name: Commit message IDs
+        if: steps.send-messages.outputs.message_ids != ''
+        run: |
+          git pull --rebase
+          git add message_ids.json
+          git diff --staged --quiet || git commit -m "Save message IDs for cleanup"
+          git push

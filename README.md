@@ -85,7 +85,7 @@ Daha fazla bilgi: https://aws.amazon.com/ec2/instance-types/
 |--------|----------|-------|
 | `ZULIP_SITE` | Zulip sunucu URL'i | `https://yourorg.zulipchat.com` |
 | `ZULIP_BOT_EMAIL` | Bot email adresi | `quiz-bot@yourorg.zulipchat.com` |
-| `ZULIP_API_KEY` | Bot API anahtarı | `aBcDeFgHiJkLmNoPqRsTuVwXyZ` |
+| `ZULIP_API_KEY` | Bot API anahtarı | `XXXXXXXXXXXXXXXXXX` |
 
 > **Not:** Stream ID (`553174`) script'lerde hardcoded olarak tanımlı.
 

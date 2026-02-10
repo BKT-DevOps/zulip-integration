@@ -3,7 +3,7 @@ name: Rotate Daily Quiz Files
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Daily at 00:00 UTC (03:00 Turkey)
+    - cron: "0 0 * * *" # Daily at 00:00 UTC (03:00 Turkey)
 
 permissions:
   contents: write
@@ -17,9 +17,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Check if system is enabled
+        id: config
+        run: |
+          ENABLED=$(jq -r '.enabled' config.json)
+          echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
+          if [ "$ENABLED" != "true" ]; then
+            echo "System is disabled via config.json. Skipping."
+          fi
 
       - name: Select random quiz from each category
+        if: steps.config.outputs.enabled == 'true'
         run: |
           MISSING_CATEGORIES=""
           SELECTED_COUNT=0
@@ -87,6 +97,7 @@ jobs:
           fi
 
       - name: Commit and push changes
+        if: steps.config.outputs.enabled == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"

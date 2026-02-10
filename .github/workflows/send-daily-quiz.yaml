@@ -3,7 +3,7 @@ name: Send Daily Quiz to Zulip
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'  # Daily at 09:00 UTC (12:00 Turkey)
+    - cron: "0 9 * * *" # Daily at 09:00 UTC (12:00 Turkey)
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Move images and answers to archive
         id: prepare-images

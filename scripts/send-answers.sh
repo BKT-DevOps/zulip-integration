@@ -4,23 +4,30 @@ set -e
 SENT_COUNT=0
 CATEGORIES="AWS Linux Docker"
 
+# Read today's quiz info from today.json
+if [ ! -f "today.json" ]; then
+    echo "::error::today.json not found. Was send-daily-quiz run today?"
+    exit 1
+fi
+
+TODAY_DATE=$(date -u +"%Y-%m-%d")
+FILE_DATE=$(jq -r '.date' today.json)
+
+if [ "$FILE_DATE" != "$TODAY_DATE" ]; then
+    echo "::warning::today.json date ($FILE_DATE) does not match today ($TODAY_DATE). Answers may be stale."
+fi
+
 for CATEGORY in $CATEGORIES; do
     echo "=== Processing $CATEGORY ==="
 
-    # Find today's image in 03-sent (moved there this morning)
-    IMAGE=$(find "03-sent/$CATEGORY" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) -mtime 0 2>/dev/null | head -n 1)
+    # Get today's image name from today.json
+    IMAGE_NAME=$(jq -r ".quizzes.${CATEGORY} // empty" today.json)
 
-    if [ -z "$IMAGE" ]; then
-        # Fallback: get the most recent image
-        IMAGE=$(find "03-sent/$CATEGORY" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) 2>/dev/null | xargs ls -t 2>/dev/null | head -n 1)
-    fi
-
-    if [ -z "$IMAGE" ]; then
-        echo "No image found for $CATEGORY, skipping"
+    if [ -z "$IMAGE_NAME" ]; then
+        echo "No image recorded for $CATEGORY in today.json, skipping"
         continue
     fi
 
-    IMAGE_NAME=$(basename "$IMAGE")
     BASE_NAME="${IMAGE_NAME%.*}"
 
     # Look for answer file

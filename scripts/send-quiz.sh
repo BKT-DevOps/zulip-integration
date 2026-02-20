@@ -32,6 +32,28 @@ send_quiz() {
         echo "$CATEGORY quiz sent. Message ID: $MSG_ID"
         echo "$MSG_ID" >> /tmp/message_ids.txt
         echo "1" >> /tmp/sent_count.txt
+
+        # Send a /poll message for A/B/C/D voting
+        POLL_CONTENT="/poll 🧠 Quiz Zamanı!
+A
+B
+C
+D"
+        POLL_RESPONSE=$(curl -s -X POST "${ZULIP_SITE}/api/v1/messages" \
+            -u "${ZULIP_BOT_EMAIL}:${ZULIP_API_KEY}" \
+            -d "type=stream" \
+            -d "to=553174" \
+            -d "topic=Daily Quiz - ${CATEGORY}" \
+            --data-urlencode "content=${POLL_CONTENT}" || true)
+
+        POLL_RESULT=$(echo "$POLL_RESPONSE" | jq -r '.result // empty')
+        if [ "$POLL_RESULT" = "success" ]; then
+            POLL_MSG_ID=$(echo "$POLL_RESPONSE" | jq -r '.id // empty')
+            echo "Poll sent for $CATEGORY. Message ID: $POLL_MSG_ID"
+            [ -n "$POLL_MSG_ID" ] && echo "$POLL_MSG_ID" >> /tmp/message_ids.txt
+        else
+            echo "::warning::Failed to send poll for $CATEGORY: $POLL_RESPONSE"
+        fi
     else
         echo "::error::Failed to send $CATEGORY quiz: $RESPONSE"
     fi

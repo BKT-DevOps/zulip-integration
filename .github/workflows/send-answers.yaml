@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: send-answers
+  cancel-in-progress: false
+
 jobs:
   send-answers:
     runs-on: ubuntu-latest
@@ -16,7 +20,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Check if system is enabled
+        id: config
+        run: |
+          ENABLED=$(jq -r '.enabled' config.json)
+          echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
+          if [ "$ENABLED" != "true" ]; then
+            echo "System is disabled via config.json. Skipping."
+          fi
+
       - name: Send answers to Zulip
+        if: steps.config.outputs.enabled == 'true'
         env:
           ZULIP_SITE: ${{ secrets.ZULIP_SITE }}
           ZULIP_BOT_EMAIL: ${{ secrets.ZULIP_BOT_EMAIL }}

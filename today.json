@@ -1,8 +1,8 @@
 {
-  "date": "2026-02-20",
+  "date": "2026-02-21",
   "quizzes": {
-    "AWS": "info-1_2026-03-16_k069_bb-info-00069.png",
-    "Linux": "question1_2026-01-28_q022_linux-0022.png",
-    "Docker": "questions1_2026-01-16_q010_docker-010.png"
+    "AWS": "info-2_2026-01-11_k005_bb-info-genel-007.png",
+    "Linux": "question1_2026-01-30_q024_linux-0024.png",
+    "Docker": "questions1_2026-01-08_q002_docker-002.png"
   }
 }

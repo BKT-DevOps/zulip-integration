@@ -64,16 +64,6 @@ jobs:
                 Docker) DOCKER_IMG="$IMAGE_NAME" ;;
               esac
 
-              # Move answer file if exists (same name but .txt or .md)
-              for ext in txt md; do
-                ANSWER_FILE="02-today/$CATEGORY/${BASE_NAME}.${ext}"
-                if [ -f "$ANSWER_FILE" ]; then
-                  mv "$ANSWER_FILE" "03-sent/$CATEGORY/"
-                  echo "${CATEGORY}_ANSWER=${BASE_NAME}.${ext}" >> $GITHUB_OUTPUT
-                  echo "Prepared $CATEGORY answer: ${BASE_NAME}.${ext}"
-                  break
-                fi
-              done
             else
               echo "${CATEGORY}_IMAGE=" >> $GITHUB_OUTPUT
               echo "::warning::No image found for $CATEGORY"

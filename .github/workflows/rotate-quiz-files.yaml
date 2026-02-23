@@ -67,17 +67,6 @@ jobs:
             mv "$RANDOM_IMAGE" "02-today/$CATEGORY/"
             echo "Moved image to 02-today/$CATEGORY/"
 
-            # Also move the answer file if it exists (same name but .txt or .md)
-            DIR_NAME=$(dirname "$RANDOM_IMAGE")
-            for ext in txt md; do
-              ANSWER_FILE="${DIR_NAME}/${BASE_NAME}.${ext}"
-              if [ -f "$ANSWER_FILE" ]; then
-                mv "$ANSWER_FILE" "02-today/$CATEGORY/"
-                echo "Moved answer file: ${BASE_NAME}.${ext}"
-                break
-              fi
-            done
-
             SELECTED_COUNT=$((SELECTED_COUNT + 1))
           done
 

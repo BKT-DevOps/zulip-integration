@@ -17,7 +17,7 @@ send_quiz() {
 ![${IMAGE_NAME}](${IMAGE_URL})"
 
     echo "Sending $CATEGORY quiz: $IMAGE_NAME"
-
+    #https://zulip.com/api/
     RESPONSE=$(curl -s -X POST "${ZULIP_SITE}/api/v1/messages" \
         -u "${ZULIP_BOT_EMAIL}:${ZULIP_API_KEY}" \
         -d "type=stream" \
